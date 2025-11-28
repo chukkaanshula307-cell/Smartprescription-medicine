@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Complete Prescription & Pill Reminder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- OCR library -->
+  <script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+      background:linear-gradient(135deg,#667eea,#764ba2);
+      min-height:100vh;color:#1a202c;
+    }
+    .container{
+      max-width:1350px;margin:0 auto;padding:18px;
+      display:grid;gap:20px;grid-template-columns:1.8fr 1.2fr;
+      align-items:flex-start;
+    }
+    @media(max-width:900px){.container{grid-template-columns:1fr}}
+    .card{
+      background:rgba(255,255,255,.97);border-radius:18px;
+      padding:16px 18px;box-shadow:0 18px 40px rgba(0,0,0,.15);
+    }
+    h2{font-size:1.3rem;margin-bottom:6px;color:#2d3748}
+    h3{font-size:1.05rem;margin:10px 0 6px;color:#2d3748}
+    .subtitle{font-size:.9rem;color:#718096;margin-bottom:10px}
+    label{
+      display:block;font-size:.86rem;font-weight:600;
+      color:#4a5568;margin-bottom:2px;
+    }
+    input,select,textarea{
+      width:100%;padding:8px 10px;margin-bottom:8px;
+      border-radius:10px;border:1.8px solid #e2e8f0;font-size:.9rem;
+      resize:vertical;
+    }
+    input:focus,select:focus,textarea:focus{
+      outline:none;border-color:#667eea;
+      box-shadow:0 0 0 2px rgba(102,126,234,.26);
+    }
+    .row{display:flex;gap:8px}
+    .row>div{flex:1}
+    .btn{
+      border:none;border-radius:12px;padding:8px 14px;
+      font-size:.85rem;font-weight:600;cursor:pointer;
+      display:inline-flex;align-items:center;gap:6px;
+    }
+    .btn-primary{
+      background:linear-gradient(135deg,#667eea,#764ba2);
+      color:#fff;box-shadow:0 8px 20px rgba(102,126,234,.5);
+    }
+    .btn-outline{background:#fff;color:#4c51bf;border:2px solid #a3bffa}
+    .btn-small{padding:5px 9px;font-size:.76rem}
+    .btn-danger{background:#e53e3e;color:#fff}
+    .list{margin-top:8px;max-height:240px;overflow-y:auto}
+    .pill-item,.hist-item,.contact-item{
+      background:#fff;border-radius:12px;padding:9px 11px;
+      margin-bottom:6px;box-shadow:0 4px 10px rgba(0,0,0,.06);
+      border-left:4px solid #667eea;font-size:.86rem;
+    }
+    .pill-name{font-weight:600;color:#2d3748}
+    .pill-meta{font-size:.8rem;color:#4a5568;margin:3px 0}
+    .pill-notes{font-size:.8rem;color:#805ad5}
+    .pill-stock{font-size:.8rem;color:#c05621}
+    .empty{text-align:center;color:#a0aec0;padding:16px 6px;font-size:.86rem}
+    .status-tag{
+      font-size:.74rem;border-radius:999px;padding:1px 7px;
+      background:#edf2ff;color:#4c51bf;margin-right:4px;
+    }
+    .status-taken{background:#c6f6d5;color:#22543d}
+    .status-missed{background:#fed7d7;color:#c53030}
+    #status{
+      margin-top:6px;padding:6px 8px;border-radius:10px;
+      font-size:.82rem;min-height:20px;
+    }
+    .status-info{background:#ebf8ff;color:#2b6cb0}
+    .status-success{background:#c6f6d5;color:#22543d}
+    .status-error{background:#fed7d7;color:#c53030}
+    #rxInfo{font-size:.85rem;color:#4a5568;margin-top:4px;}
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- LEFT: prescription, medicines, history -->
+  <section class="card">
+    <h2>💊 Medicines & Prescription</h2>
+    <p class="subtitle">
+      Upload a prescription or enter medicines manually.  
+      App reminds you at the right times and tracks taken / missed doses.
+    </p>
+
+    <!-- Prescription upload -->
+    <h3>Upload prescription (optional)</h3>
+    <label for="rxFile" class="btn btn-outline">📁 Choose image</label>
+    <input id="rxFile" type="file" accept="image/*" style="display:none">
+    <div id="rxInfo">No prescription uploaded yet.</div>
+    <div id="status" class="status-info" style="margin-bottom:6px;">
+      Ready to scan prescription or add medicines manually.
+    </div>
+
+    <!-- Manual medicine entry -->
+    <h3 style="margin-top:10px;">Add medicine manually</h3>
+    <div class="row">
+      <div>
+        <label for="medName">Medicine name</label>
+        <input id="medName" placeholder="Metformin">
+      </div>
+      <div>
+        <label for="perDose">Pills each time</label>
+        <input id="perDose" type="number" min="1" value="1">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="timesPerDay">Times per day</label>
+        <select id="timesPerDay">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </div>
+      <div>
+        <label for="totalPills">Total pills available</label>
+        <input id="totalPills" type="number" min="0" value="30">
+      </div>
+    </div>
+
+    <div id="timeInputs"></div>
+
+    <label for="purpose">Purpose / use</label>
+    <input id="purpose" placeholder="For diabetes, for BP, for pain etc.">
+
+    <label for="notes">Notes (how to take)</label>
+    <textarea id="notes" rows="2" placeholder="With food, drink water, avoid driving etc."></textarea>
+
+    <button id="addMed" class="btn btn-primary">➕ Add medicine</button>
+
+    <div class="list" id="medList"></div>
+
+    <h3 style="margin-top:12px;">Today’s dose history</h3>
+    <div class="list" id="histList"></div>
+  </section>
+
+  <!-- RIGHT: voice + doctor/caregiver -->
+  <section class="card">
+    <h2>🔊 Voice reminders & Contacts</h2>
+    <p class="subtitle">
+      At dose time: “you have to take this medicine &lt;name&gt;”.  
+      If not taken after the time passes: “You have missed the medicine &lt;name&gt;”.
+    </p>
+    <button id="toggleVoice" class="btn btn-outline" style="margin-bottom:10px;">
+      Enable voice
+    </button>
+    <div style="font-size:.85rem;color:#4a5568;margin-bottom:14px;">
+      Keep this tab open and unmuted. Some browsers need one click before speech starts. [web:22][web:115]
+    </div>
+
+    <h3>Doctor details</h3>
+    <label for="docName">Name</label><input id="docName">
+    <label for="docPhone">Phone</label><input id="docPhone" type="tel">
+    <button id="saveDoc" class="btn btn-primary" style="width:100%;margin:4px 0 10px;">
+      Save doctor
+    </button>
+
+    <h3>Caregiver details</h3>
+    <label for="careName">Name</label><input id="careName">
+    <label for="carePhone">Phone</label><input id="carePhone" type="tel">
+    <button id="saveCare" class="btn btn-primary" style="width:100%;margin:4px 0 10px;">
+      Save caregiver
+    </button>
+
+    <h3>Contacts</h3>
+    <div class="list" id="contactList"></div>
+  </section>
+</div>
+
+<script>
+  // ====== STATE ======
+  let meds = JSON.parse(localStorage.getItem("meds-full") || "[]");
+  let history = JSON.parse(localStorage.getItem("hist-full") || "[]");
+  let contacts = JSON.parse(localStorage.getItem("contacts-full") || "[]");
+  let rxInfo = localStorage.getItem("rxInfo-full") || "";
+  const supportsSpeech = "speechSynthesis" in window;
+  let voiceOn = false;
+
+  const statusEl   = document.getElementById("status");
+  const rxInfoEl   = document.getElementById("rxInfo");
+  const timeInputs = document.getElementById("timeInputs");
+  const medList    = document.getElementById("medList");
+  const histList   = document.getElementById("histList");
+  const contactList= document.getElementById("contactList");
+  const canvas     = document.createElement("canvas");
+  const ctx        = canvas.getContext("2d");
+
+  function todayStr(){ return new Date().toISOString().slice(0,10); }
+  function saveAll(){
+    localStorage.setItem("meds-full", JSON.stringify(meds));
+    localStorage.setItem("hist-full", JSON.stringify(history));
+    localStorage.setItem("contacts-full", JSON.stringify(contacts));
+    localStorage.setItem("rxInfo-full", rxInfo);
+  }
+
+  function setStatus(msg, kind="info"){
+    statusEl.textContent = msg;
+    statusEl.className = "";
+    statusEl.classList.add(
+      kind==="success" ? "status-success" :
+      kind==="error"   ? "status-error"   :
+                         "status-info"
+    );
+  }
+
+  // ====== DYNAMIC TIME INPUTS ======
+  function renderTimeInputs(){
+    const n = parseInt(timesPerDay.value,10);
+    timeInputs.innerHTML = "";
+    for(let i=1;i<=n;i++){
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `
+        <div>
+          <label>Time ${i}</label>
+          <input type="time" id="time-${i}">
+        </div>
+      `;
+      timeInputs.appendChild(row);
+    }
+  }
+  timesPerDay.addEventListener("change", renderTimeInputs);
+  renderTimeInputs();
+
+  // ====== SPEECH ======
+  function speak(text){
+    if(!supportsSpeech || !voiceOn) return;
+    try { window.speechSynthesis.cancel(); } catch(e){}
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.95;
+    window.speechSynthesis.speak(u);
+  }
+
+  const toggleVoiceBtn = document.getElementById("toggleVoice");
+  toggleVoiceBtn.onclick = () => {
+    if(!supportsSpeech){
+      alert("Voice not supported in this browser.");
+      return;
+    }
+    voiceOn = !voiceOn;
+    toggleVoiceBtn.textContent = voiceOn ? "Disable voice" : "Enable voice";
+  };
+
+  // ====== MEDICINES ======
+  function renderMeds(){
+    if(!meds.length){
+      medList.innerHTML = '<div class="empty">No medicines yet. Upload prescription or add manually.</div>';
+      return;
+    }
+    medList.innerHTML = meds.map(m => `
+      <div class="pill-item">
+        <div>
+          <div class="pill-name">${m.name}</div>
+          <div class="pill-meta">
+            Pills each time: ${m.perDose} • Times: ${m.times.join(", ")} • Total pills left: ${m.totalPills}<br>
+            Purpose / use: ${m.purpose || "use not specified"}
+          </div>
+          ${m.notes ? `<div class="pill-notes">Notes: ${m.notes}</div>` : ""}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <button class="btn btn-outline btn-small" onclick="markTakenNow(${m.id})">✔ Taken now</button>
+          <button class="btn btn-outline btn-small" onclick="markMissedNow(${m.id})">✖ Missed now</button>
+          <button class="btn btn-outline btn-small" onclick="deleteMed(${m.id})">🗑 Delete</button>
+        </div>
+      </div>
+    `).join("");
+  }
+  window.deleteMed = id => {
+    meds = meds.filter(m => m.id !== id);
+    saveAll(); renderMeds();
+  };
+
+  // ====== HISTORY ======
+  function renderHistory(){
+    const today = history.filter(h => h.date === todayStr());
+    if(!today.length){
+      histList.innerHTML = '<div class="empty">No doses logged today yet.</div>';
+      return;
+    }
+    histList.innerHTML = today.map(h => `
+      <div class="hist-item">
+        <span class="status-tag ${h.status==='TAKEN'?'status-taken':'status-missed'}">
+          ${h.status==='TAKEN'?'Taken':'Missed'}
+        </span>
+        ${h.name} at ${h.time}
+      </div>
+    `).join("");
+  }
+
+  function markDose(med, time, status){
+    history = history.filter(h => !(h.medId===med.id && h.time===time && h.date===todayStr()));
+    history.push({id:Date.now(), medId:med.id, name:med.name, time, date:todayStr(), status});
+    if(status === "TAKEN"){
+      med.totalPills = Math.max(0, med.totalPills - med.perDose);
+    }
+    saveAll(); renderHistory(); renderMeds();
+  }
+
+  function currentHHMM(){
+    const d = new Date();
+    return String(d.getHours()).padStart(2,"0")+":"+
+           String(d.getMinutes()).padStart(2,"0");
+  }
+
+  window.markTakenNow = id => {
+    const med = meds.find(m => m.id === id);
+    if(!med) return;
+    const t = currentHHMM();
+    markDose(med,t,"TAKEN");
+    speak("you have taken the medicine " + med.name);
+  };
+
+  window.markMissedNow = id => {
+    const med = meds.find(m => m.id === id);
+    if(!med) return;
+    const t = currentHHMM();
+    markDose(med,t,"MISSED");
+    speak("You have missed the medicine " + med.name);
+  };
+
+  // ====== ADD MEDICINE MANUALLY ======
+  const perDoseEl = document.getElementById("perDose");
+  document.getElementById("addMed").onclick = () => {
+    const name = medName.value.trim();
+    const perDoseVal = parseInt(perDoseEl.value || "1",10);
+    const n = parseInt(timesPerDay.value,10);
+    const total = parseInt(totalPills.value || "0",10);
+    const purposeText = purpose.value.trim();
+    const notesText = notes.value.trim();
+    if(!name){
+      alert("Please enter medicine name.");
+      return;
+    }
+    const times = [];
+    for(let i=1;i<=n;i++){
+      const t = document.getElementById("time-"+i).value;
+      if(!t){
+        alert("Please fill Time "+i);
+        return;
+      }
+      times.push(t);
+    }
+    meds.push({
+      id: Date.now(),
+      name,
+      perDose: isNaN(perDoseVal)?1:perDoseVal,
+      times,
+      totalPills: isNaN(total)?0:total,
+      purpose: purposeText || "use not specified",
+      notes: notesText
+    });
+    saveAll(); renderMeds();
+    medName.value = ""; perDoseEl.value = "1"; totalPills.value = "30";
+    purpose.value = ""; notes.value = "";
+    renderTimeInputs();
+  };
+
+  // ====== PRESCRIPTION UPLOAD + OCR → draft medicines ======
+  rxInfoEl.textContent = rxInfo || "No prescription uploaded yet.";
+  document.getElementById("rxFile").addEventListener("change", e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => {
+      img.src = reader.result;
+      img.onload = async () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img,0,0);
+        await runOCR(canvas,file);
+      };
+    };
+    reader.readAsDataURL(file);
+  });
+
+  async function runOCR(cv,file){
+    try{
+      setStatus("Reading text from prescription image…");
+      const res = await Tesseract.recognize(cv,"eng");
+      const text = (res.data.text || "").trim();
+      if(!text){
+        setStatus("Could not read text. Try a clearer photo.", "error");
+        return;
+      }
+      const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l.length>0);
+      if(!lines.length){
+        setStatus("No lines found in prescription.", "error");
+        return;
+      }
+      lines.forEach(line=>{
+        meds.push({
+          id: Date.now()+Math.random(),
+          name: line,
+          perDose: 1,
+          times: ["09:00"],
+          totalPills: 30,
+          purpose: "from prescription – edit with correct use",
+          notes: ""
+        });
+      });
+      rxInfo = "Prescription: " + file.name + " (" + Math.round(file.size/1024) + " KB)";
+      rxInfoEl.textContent = rxInfo;
+      saveAll();
+      renderMeds();
+      setStatus("Prescription scanned. Draft medicines added with default time 09:00 – edit details manually.", "success");
+    }catch(err){
+      console.error(err);
+      setStatus("Error while running OCR. Try again.", "error");
+    }
+  }
+
+  // ====== CONTACTS (doctor + caregiver) ======
+  function renderContacts(){
+    if(!contacts.length){
+      contactList.innerHTML = '<div class="empty">No contacts saved.</div>';
+      return;
+    }
+    contactList.innerHTML = contacts.map(c => `
+      <div class="contact-item" style="border-left-color:${c.type==='Doctor'?'#48bb78':'#ed8936'}">
+        <div class="pill-name">${c.name} (${c.type})</div>
+        <div class="pill-meta">${c.phone}</div>
+        <div style="margin-top:4px;">
+          <a class="btn btn-small btn-outline" href="tel:${c.phone}">📞 Call</a>
+          <a class="btn btn-small btn-outline"
+             href="sms:${c.phone}?body=${encodeURIComponent('Hi '+c.name+', I need help with my medicines.')}">
+             💬 SMS
+          </a>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  saveDoc.onclick = () => {
+    const name = docName.value.trim();
+    const phone = docPhone.value.trim();
+    if(!name || !phone){ alert("Doctor name + phone required.");return;}
+    contacts = contacts.filter(c=>c.type!=="Doctor");
+    contacts.push({type:"Doctor",name,phone});
+    saveAll(); renderContacts();
+    docName.value = docPhone.value = "";
+  };
+  saveCare.onclick = () => {
+    const name = careName.value.trim();
+    const phone = carePhone.value.trim();
+    if(!name || !phone){ alert("Caregiver name + phone required.");return;}
+    contacts = contacts.filter(c=>c.type!=="Caregiver");
+    contacts.push({type:"Caregiver",name,phone});
+    saveAll(); renderContacts();
+    careName.value = carePhone.value = "";
+  };
+
+  // ====== REMINDER ENGINE ======
+  function nowHHMM(){
+    const d = new Date();
+    return String(d.getHours()).padStart(2,"0")+":"+
+           String(d.getMinutes()).padStart(2,"0");
+  }
+
+  function checkReminders(){
+    const current = nowHHMM();
+
+    meds.forEach(m => {
+      m.times.forEach(t => {
+        const rec = history.find(h => h.medId===m.id && h.time===t && h.date===todayStr());
+
+        // At exact time and not logged yet -> "take medicine" + dialog
+        if(t === current && !rec){
+          const msg = "you have to take this medicine " + m.name;
+          speak(msg);
+          const ok = confirm(msg + ". Press OK after taking it, or Cancel if you skip.");
+          markDose(m,t, ok ? "TAKEN" : "MISSED");
+          return; // skip missed check in same minute
+        }
+
+        // As soon as time is past and not TAKEN -> "missed medicine"
+        if(t < current){ // both are HH:MM strings
+          const r = history.find(h => h.medId===m.id && h.time===t && h.date===todayStr());
+          if(!r || r.status!=="TAKEN"){
+            speak("You have missed the medicine " + m.name);
+          }
+        }
+      });
+    });
+  }
+  setInterval(checkReminders, 60000);
+
+  // ====== INIT ======
+  rxInfoEl.textContent = rxInfo || "No prescription uploaded yet.";
+  renderMeds();
+  renderHistory();
+  renderContacts();
+</script>
+</body>
+</html>
